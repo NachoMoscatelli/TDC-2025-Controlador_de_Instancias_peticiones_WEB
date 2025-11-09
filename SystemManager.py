@@ -1,0 +1,92 @@
+import logging
+import threading
+import queue
+from Instancia import Instancia
+
+class SystemManager:
+    """
+    Clase que gestiona las instancias de procesamiento y distribuye las peticiones.
+    """
+    def __init__(self):
+        """
+        Inicializa el SystemManager.
+        """
+        self.peticiones_pendientes = queue.Queue()
+        self.instancias = []
+        self.peticiones_nuevas_sem = threading.Semaphore(0) # Semáforo para peticiones entrantes
+        self.instancias_libres_sem = threading.Semaphore(0) # Semáforo que cuenta instancias libres
+        self.next_instance_id = 0
+        self._activo = threading.Event()
+        self._dispatcher_thread = threading.Thread(target=self._bucle_despachador, daemon=True)
+        self._activo.set()
+        self._dispatcher_thread.start()
+
+    def create_instance(self):
+        """
+        Crea una nueva instancia de procesamiento, la inicia y la añade a la lista.
+        """
+        instance_id = self.next_instance_id
+        logging.info(f"Manager: Creando instancia {instance_id}...")
+        nueva_instancia = Instancia(id_instancia=instance_id, semaforo=self.instancias_libres_sem)
+        nueva_instancia.iniciar()
+        self.instancias.append(nueva_instancia)
+        self.instancias_libres_sem.release() # Incrementamos el contador: hay una nueva instancia libre
+        self.next_instance_id += 1
+        return nueva_instancia
+
+    def receive_request(self, arrival_time, processing_time):
+        """
+        Recibe una petición del cliente y la añade a la cola interna para ser procesada.
+        Esta función ahora es no bloqueante.
+        """
+        logging.info(f"<-- Manager: Petición recibida a las {arrival_time:.2f} "
+                     f"con un tiempo de procesamiento de {processing_time:.3f}s.")
+        # Pone la petición en la cola y "avisa" al despachador incrementando el semáforo.
+        self.peticiones_pendientes.put((arrival_time, processing_time))
+        self.peticiones_nuevas_sem.release()
+
+    def _bucle_despachador(self):
+        """
+        Hilo que consume de la cola de peticiones pendientes y las asigna a instancias libres.
+        """
+        while True:
+            # Espera a que llegue una nueva petición (con timeout para permitir el apagado).
+            # Si acquire() devuelve False, es por timeout. Si es True, es por una señal.
+            self.peticiones_nuevas_sem.acquire()
+            # Hay una petición garantizada en la cola, la sacamos sin bloquear.
+            peticion = self.peticiones_pendientes.get()
+
+            if peticion is None: # Píldora venenosa para terminar el hilo
+                break
+
+            # Adquiere el semáforo. Se bloqueará aquí si no hay instancias libres.
+            self.instancias_libres_sem.acquire()
+
+            # Al pasar de aquí, tenemos garantizado que hay un "ticket" para una instancia libre.
+            for instancia in self.instancias:
+                if instancia.esta_libre():
+                    instancia.recibir_peticion(*peticion)
+                    self.peticiones_pendientes.task_done()
+                    break # Petición asignada
+
+    def get_avg_latency(self):
+        """Calcula y devuelve la latencia media de las peticiones (sin implementar)."""
+        pass
+
+    def scale(self, pid_signal):
+        """Ajusta el número de instancias basado en la señal de un controlador PID."""
+        logging.info(f"Manager: Recibida señal de escalado PID: {pid_signal}")
+
+    def detener_instancias(self):
+        """Detiene todas las instancias activas."""
+        logging.info("Manager: Esperando a que se procesen todas las peticiones en cola...")
+        self.peticiones_pendientes.join() # Espera a que se despachen todas las peticiones reales.
+        
+        # Enviamos la "píldora venenosa" para detener al despachador
+        self.peticiones_pendientes.put(None)
+        self.peticiones_nuevas_sem.release() # Despertamos al despachador para que la vea
+        
+        self._dispatcher_thread.join() # Espera a que el hilo despachador termine.
+        logging.info("Manager: Deteniendo instancias de procesamiento...")
+        for instancia in self.instancias:
+            instancia.detener()
