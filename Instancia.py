@@ -20,6 +20,7 @@ class Instancia:
         self._thread = threading.Thread(target=self._bucle_procesamiento, daemon=True)
         self.semaforo = semaforo
         self._lock = threading.Lock()
+        self.arrival_time_actual = None
         self._ocupado = False
         self._activo = threading.Event()
 
@@ -46,12 +47,21 @@ class Instancia:
         """
         Envía una nueva petición a la cola de la instancia para ser procesada.
         """
+        with self._lock:
+            self.arrival_time_actual = arrival_time
         self.peticiones.put((arrival_time, processing_time))
 
     def esta_libre(self):
         """Devuelve True si la instancia no está procesando una petición."""
         with self._lock:
             return not self._ocupado
+
+    def get_datos_peticion_actual(self):
+        """
+        Devuelve el estado de ocupación y el tiempo de llegada de la petición actual.
+        """
+        with self._lock:
+            return self._ocupado, self.arrival_time_actual
 
     def _bucle_procesamiento(self):
         """
@@ -70,6 +80,7 @@ class Instancia:
             time.sleep(tiempo_procesamiento)
             with self._lock:
                 self._ocupado = False
+                self.arrival_time_actual = None
             
             # Libera el semáforo, indicando que una instancia ha quedado libre.
             self.semaforo.release()
