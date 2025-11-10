@@ -13,6 +13,7 @@ class SystemManager:
         """
         self.peticiones_pendientes = queue.Queue()
         self.instancias = []
+        self.cola_lock = threading.Lock() # Lock para proteger el acceso a la cola
         self.peticiones_nuevas_sem = threading.Semaphore(0) # Semáforo para peticiones entrantes
         self.instancias_libres_sem = threading.Semaphore(0) # Semáforo que cuenta instancias libres
         self.next_instance_id = 0
@@ -34,6 +35,27 @@ class SystemManager:
         self.next_instance_id += 1
         return nueva_instancia
 
+    def destroy_instance(self):
+        """
+        Busca una instancia libre, la detiene y la elimina del sistema.
+        """
+        if len(self.instancias) <= 1:
+            logging.warning("Manager: Intento de desescalado por debajo del mínimo (1 instancia). Acción cancelada.")
+            return
+
+        # Intentamos adquirir un "ticket" de instancia libre. Si no podemos, no hay ninguna libre para destruir.
+        if self.instancias_libres_sem.acquire(blocking=False):
+            # Si tuvimos éxito, ahora debemos encontrar cuál es la instancia libre.
+            for instancia in self.instancias:
+                if instancia.esta_libre():
+                    logging.info(f"Manager: Destruyendo instancia {instancia.id} por baja carga...")
+                    instancia.detener()
+                    self.instancias.remove(instancia)
+                    return # Instancia destruida, salimos.
+            # Si llegamos aquí, es un estado inconsistente (el semáforo dijo que había una libre pero no la encontramos).
+            # Devolvemos el ticket para no romper el sistema.
+            self.instancias_libres_sem.release()
+
     def receive_request(self, arrival_time, processing_time):
         """
         Recibe una petición del cliente y la añade a la cola interna para ser procesada.
@@ -42,8 +64,15 @@ class SystemManager:
         logging.info(f"<-- Manager: Petición recibida a las {arrival_time:.2f} "
                      f"con un tiempo de procesamiento de {processing_time:.3f}s.")
         # Pone la petición en la cola y "avisa" al despachador incrementando el semáforo.
-        self.peticiones_pendientes.put((arrival_time, processing_time))
+        with self.cola_lock:
+            self.peticiones_pendientes.put((arrival_time, processing_time))
         self.peticiones_nuevas_sem.release()
+
+    def get_peticiones_pendientes_snapshot(self):
+        """Devuelve una copia segura de las peticiones en la cola."""
+        with self.cola_lock:
+            # .queue es el deque interno del objeto Queue
+            return list(self.peticiones_pendientes.queue)
 
     def _bucle_despachador(self):
         """
@@ -54,7 +83,8 @@ class SystemManager:
             # Si acquire() devuelve False, es por timeout. Si es True, es por una señal.
             self.peticiones_nuevas_sem.acquire()
             # Hay una petición garantizada en la cola, la sacamos sin bloquear.
-            peticion = self.peticiones_pendientes.get()
+            with self.cola_lock:
+                peticion = self.peticiones_pendientes.get()
 
             if peticion is None: # Píldora venenosa para terminar el hilo
                 break
@@ -75,7 +105,14 @@ class SystemManager:
 
     def scale(self, pid_signal):
         """Ajusta el número de instancias basado en la señal de un controlador PID."""
-        logging.info(f"Manager: Recibida señal de escalado PID: {pid_signal}")
+        # Umbrales para tomar decisiones de escalado
+        SCALE_UP_THRESHOLD = -0.5
+        SCALE_DOWN_THRESHOLD = 0.5
+
+        if pid_signal < SCALE_UP_THRESHOLD:
+            self.create_instance()
+        elif pid_signal > SCALE_DOWN_THRESHOLD:
+            self.destroy_instance()
 
     def detener_instancias(self):
         """Detiene todas las instancias activas."""
@@ -83,7 +120,8 @@ class SystemManager:
         self.peticiones_pendientes.join() # Espera a que se despachen todas las peticiones reales.
         
         # Enviamos la "píldora venenosa" para detener al despachador
-        self.peticiones_pendientes.put(None)
+        with self.cola_lock:
+            self.peticiones_pendientes.put(None)
         self.peticiones_nuevas_sem.release() # Despertamos al despachador para que la vea
         
         self._dispatcher_thread.join() # Espera a que el hilo despachador termine.

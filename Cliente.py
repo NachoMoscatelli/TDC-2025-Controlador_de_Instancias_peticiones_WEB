@@ -1,6 +1,7 @@
 import time
 import logging
 import threading
+import csv
 
 class Cliente:
     """
@@ -13,24 +14,31 @@ class Cliente:
 
         :param manager: La instancia de SystemManager a la que se enviarán las peticiones.
         """
-        # Lista de tuplas: (tiempo_desde_ultima_peticion_ms, tiempo_procesamiento_ms)
-        # Cada tupla es UNA petición.
-        self.peticiones_programadas = [
-            (100, 150),  # Espera 100ms, llega petición que tarda 150ms en procesarse
-            (50, 200),   # 50ms después, llega otra que tarda 200ms
-            (50, 180),
-            (20, 300),   # 20ms después, llega una pesada de 300ms
-            (20, 250),
-            (20, 280),   # Ráfaga de peticiones pesadas
-            (500, 50),   # Pausa de 500ms, llega una petición ligera
-            (400, 60),
-            (10, 400),   # Ráfaga final con una petición muy pesada
-            (10, 350),
-            (10, 380),
-        ]
         self.manager = manager
         self.thread = None
+        self.peticiones_programadas = self._cargar_peticiones_desde_archivo("peticiones.csv")
 
+    def _cargar_peticiones_desde_archivo(self, nombre_archivo):
+        """Lee un archivo CSV para cargar la lista de peticiones programadas."""
+        peticiones = []
+        try:
+            with open(nombre_archivo, mode='r', newline='') as archivo_csv:
+                lector_csv = csv.reader(archivo_csv)
+                for i, fila in enumerate(lector_csv):
+                    if len(fila) == 2:
+                        try:
+                            espera_ms = int(fila[0])
+                            procesamiento_ms = int(fila[1])
+                            peticiones.append((espera_ms, procesamiento_ms))
+                        except ValueError:
+                            logging.warning(f"Cliente: Ignorando línea {i+1} en {nombre_archivo} por formato de número inválido.")
+                    else:
+                        logging.warning(f"Cliente: Ignorando línea {i+1} en {nombre_archivo} por no tener 2 columnas.")
+            logging.info(f"Cliente: Se cargaron {len(peticiones)} peticiones desde {nombre_archivo}.")
+        except FileNotFoundError:
+            logging.error(f"Cliente: ¡Error! No se encontró el archivo de peticiones '{nombre_archivo}'. La simulación no tendrá carga.")
+        return peticiones
+        
     def iniciar(self, sim_start_time):
         """Inicia el hilo del cliente para que comience a generar peticiones."""
         self.thread = threading.Thread(target=self._generar_peticiones, args=(sim_start_time,))
