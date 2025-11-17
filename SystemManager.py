@@ -18,6 +18,8 @@ class SystemManager:
         self.instancias_libres_sem = threading.Semaphore(0) # Semáforo que cuenta instancias libres
         self.next_instance_id = 0
         self._activo = threading.Event()
+        self._peticiones_nuevas_contador = 0
+        self._contador_lock = threading.Lock()
         self._dispatcher_thread = threading.Thread(target=self._bucle_despachador, daemon=True)
         self._activo.set()
         self._dispatcher_thread.start()
@@ -66,6 +68,8 @@ class SystemManager:
         # Pone la petición en la cola y "avisa" al despachador incrementando el semáforo.
         with self.cola_lock:
             self.peticiones_pendientes.put((arrival_time, processing_time))
+        with self._contador_lock:
+            self._peticiones_nuevas_contador += 1
         self.peticiones_nuevas_sem.release()
 
     def get_peticiones_pendientes_snapshot(self):
@@ -73,6 +77,13 @@ class SystemManager:
         with self.cola_lock:
             # .queue es el deque interno del objeto Queue
             return list(self.peticiones_pendientes.queue)
+
+    def get_and_reset_nuevas_peticiones(self):
+        """Devuelve el número de peticiones recibidas desde la última llamada y resetea el contador."""
+        with self._contador_lock:
+            count = self._peticiones_nuevas_contador
+            self._peticiones_nuevas_contador = 0
+            return count
 
     def _bucle_despachador(self):
         """
@@ -105,13 +116,35 @@ class SystemManager:
 
     def scale(self, pid_signal):
         """Ajusta el número de instancias basado en la señal de un controlador PID."""
-        # Umbrales para tomar decisiones de escalado
-        SCALE_UP_THRESHOLD = -0.5
-        SCALE_DOWN_THRESHOLD = 0.5
+        # --- Umbrales de ESCALADO (cuando la latencia es ALTA, señal NEGATIVA) ---
+        SCALE_UP_SEVERE_THRESHOLD = -0.16  # Corresponde a +100ms de latencia (300ms total)
+        SCALE_UP_MODERATE_THRESHOLD = -0.112 # Corresponde a +70ms de latencia (270ms total)
+        SCALE_UP_MILD_THRESHOLD = -0.048   # Corresponde a +30ms de latencia (230ms total)
 
-        if pid_signal < SCALE_UP_THRESHOLD:
+        # --- Umbrales de DESESCALADO (cuando la latencia es BAJA, señal POSITIVA) ---
+        SCALE_DOWN_SEVERE_THRESHOLD = 0.16   # Corresponde a -100ms de latencia (100ms total)
+        SCALE_DOWN_MODERATE_THRESHOLD = 0.112  # Corresponde a -70ms de latencia (130ms total)
+        SCALE_DOWN_MILD_THRESHOLD = 0.048    # Corresponde a -30ms de latencia (170ms total)
+
+        # Lógica de Escalado (Scale-Up)
+        if pid_signal < SCALE_UP_SEVERE_THRESHOLD:
+            logging.info(f"Manager: Señal PID severa ({pid_signal:.2f}). Creando 4 instancias.")
+            for _ in range(4): self.create_instance()
+        elif pid_signal < SCALE_UP_MODERATE_THRESHOLD:
+            logging.info(f"Manager: Señal PID moderada ({pid_signal:.2f}). Creando 2 instancias.")
+            for _ in range(2): self.create_instance()
+        elif pid_signal < SCALE_UP_MILD_THRESHOLD:
+            logging.info(f"Manager: Señal PID leve ({pid_signal:.2f}). Creando 1 instancia.")
             self.create_instance()
-        elif pid_signal > SCALE_DOWN_THRESHOLD:
+        # Lógica de Desescalado (Scale-Down)
+        elif pid_signal > SCALE_DOWN_SEVERE_THRESHOLD:
+            logging.info(f"Manager: Señal PID de baja carga severa ({pid_signal:.2f}). Destruyendo 4 instancias.")
+            for _ in range(4): self.destroy_instance()
+        elif pid_signal > SCALE_DOWN_MODERATE_THRESHOLD:
+            logging.info(f"Manager: Señal PID de baja carga moderada ({pid_signal:.2f}). Destruyendo 2 instancias.")
+            for _ in range(2): self.destroy_instance()
+        elif pid_signal > SCALE_DOWN_MILD_THRESHOLD:
+            logging.info(f"Manager: Señal PID de baja carga leve ({pid_signal:.2f}). Destruyendo 1 instancia.")
             self.destroy_instance()
 
     def detener_instancias(self):

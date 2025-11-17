@@ -2,42 +2,32 @@ import time
 import logging
 import threading
 import csv
+import random
 
 class Cliente:
     """
     Encapsula la lógica de un cliente que genera una carga de trabajo
     programada en un hilo separado.
     """
-    def __init__(self, manager):
+    def __init__(self, manager, frecuencia_promedio_hz=5, numero_peticiones=500):
         """
         Inicializa el cliente.
 
         :param manager: La instancia de SystemManager a la que se enviarán las peticiones.
+        :param frecuencia_promedio_hz: La frecuencia promedio de llegada de peticiones (en Hz).
+        :param numero_peticiones: El número total de peticiones a generar.
         """
         self.manager = manager
         self.thread = None
-        self.peticiones_programadas = self._cargar_peticiones_desde_archivo("peticiones.csv")
+        self.numero_peticiones = numero_peticiones
 
-    def _cargar_peticiones_desde_archivo(self, nombre_archivo):
-        """Lee un archivo CSV para cargar la lista de peticiones programadas."""
-        peticiones = []
-        try:
-            with open(nombre_archivo, mode='r', newline='') as archivo_csv:
-                lector_csv = csv.reader(archivo_csv)
-                for i, fila in enumerate(lector_csv):
-                    if len(fila) == 2:
-                        try:
-                            espera_ms = int(fila[0])
-                            procesamiento_ms = int(fila[1])
-                            peticiones.append((espera_ms, procesamiento_ms))
-                        except ValueError:
-                            logging.warning(f"Cliente: Ignorando línea {i+1} en {nombre_archivo} por formato de número inválido.")
-                    else:
-                        logging.warning(f"Cliente: Ignorando línea {i+1} en {nombre_archivo} por no tener 2 columnas.")
-            logging.info(f"Cliente: Se cargaron {len(peticiones)} peticiones desde {nombre_archivo}.")
-        except FileNotFoundError:
-            logging.error(f"Cliente: ¡Error! No se encontró el archivo de peticiones '{nombre_archivo}'. La simulación no tendrá carga.")
-        return peticiones
+        # Calcula el tiempo de espera promedio en milisegundos a partir de la frecuencia
+        tiempo_espera_promedio_ms = (1 / frecuencia_promedio_hz) * 1000
+
+        # Crea un intervalo de tiempo aleatorio (ej. 50% a 150% del promedio)
+        self.espera_min_ms = int(tiempo_espera_promedio_ms * 0.5)
+        self.espera_max_ms = int(tiempo_espera_promedio_ms * 1.5)
+        logging.info(f"Cliente configurado para ~{frecuencia_promedio_hz}Hz. Intervalo de espera: [{self.espera_min_ms}ms - {self.espera_max_ms}ms]")
         
     def iniciar(self, sim_start_time):
         """Inicia el hilo del cliente para que comience a generar peticiones."""
@@ -45,17 +35,21 @@ class Cliente:
         self.thread.start()
 
     def _generar_peticiones(self, sim_start_time):
-        """Lógica interna del hilo: espera y envía peticiones según lo programado."""
-        logging.info("--> Hilo Cliente: Iniciado y generando peticiones programadas.")
-        for espera_ms, procesamiento_ms in self.peticiones_programadas:
-            # Esperamos el tiempo relativo desde la última petición
+        """Lógica interna del hilo: genera y envía peticiones de forma aleatoria."""
+        logging.info(f"--> Hilo Cliente: Iniciado. Generando {self.numero_peticiones} peticiones aleatorias.")
+        for _ in range(self.numero_peticiones):
+            # Generamos tiempos aleatorios para la espera y el procesamiento
+            espera_ms = random.randint(self.espera_min_ms, self.espera_max_ms)
+            procesamiento_ms = 100 # Tiempo de procesamiento constante
+
+            # Esperamos el tiempo aleatorio
             time.sleep(espera_ms / 1000.0)
             
-            # Enviamos una única petición con su duración de procesamiento específica
             procesamiento_sec = procesamiento_ms / 1000.0
-            self.manager.receive_request(time.time(), procesamiento_sec)
+            # Usamos el tiempo relativo al inicio de la simulación para la consistencia
+            self.manager.receive_request(time.time() - sim_start_time, procesamiento_sec)
         
-        logging.info("--> Hilo Cliente: Todas las peticiones programadas han sido enviadas.")
+        logging.info(f"--> Hilo Cliente: Se han enviado las {self.numero_peticiones} peticiones.")
 
     def esperar_finalizacion(self):
         """Espera a que el hilo del cliente termine su ejecución."""

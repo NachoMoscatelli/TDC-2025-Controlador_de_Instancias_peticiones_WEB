@@ -6,7 +6,7 @@ class Medidor:
     """
     Mide la latencia promedio del sistema y genera una señal de error.
     """
-    def __init__(self, system_manager, controlador, data_collector, latencia_deseada_ms=200, intervalo_medicion_ms=20):
+    def __init__(self, system_manager, controlador, data_collector, sim_start_time, latencia_deseada_ms=200, intervalo_medicion_ms=20):
         """
         Inicializa el Medidor.
 
@@ -19,6 +19,7 @@ class Medidor:
         self.manager = system_manager
         self.controlador = controlador
         self.data_collector = data_collector
+        self.sim_start_time = sim_start_time
         self.latencia_deseada_s = latencia_deseada_ms / 1000.0
         self.intervalo_medicion_ms = intervalo_medicion_ms / 1000.0
         self._thread = threading.Thread(target=self._bucle_medicion, daemon=True)
@@ -43,8 +44,9 @@ class Medidor:
             latencia_promedio, peticiones_activas = self.get_system_metrics()
             if latencia_promedio is not None:
                 error = self.latencia_deseada_s - latencia_promedio
+                peticiones_nuevas = self.manager.get_and_reset_nuevas_peticiones()
                 # Recolectamos los datos para la gráfica
-                self.data_collector.collect(latencia_promedio, len(self.manager.instancias), peticiones_activas)
+                self.data_collector.collect(latencia_promedio, len(self.manager.instancias), peticiones_activas, error, peticiones_nuevas)
                 logging.info(f"Medidor: Latencia Promedio: {latencia_promedio*1000:.2f}ms. Error: {error*1000:.2f}ms.")
                 self.controlador.recibir_error(error)
 
@@ -53,7 +55,7 @@ class Medidor:
         Calcula la latencia promedio de todas las instancias.
         Las instancias inactivas aportan una latencia de 0.
         """
-        tiempo_referencia = time.time()
+        tiempo_referencia = time.time() - self.sim_start_time
         latencia_total = 0
 
         # 1. Medir latencia de peticiones SIENDO PROCESADAS
