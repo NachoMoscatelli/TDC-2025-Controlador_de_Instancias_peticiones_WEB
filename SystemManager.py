@@ -116,11 +116,19 @@ class SystemManager:
 
     def scale(self, pid_signal):
         """Ajusta el número de instancias basado en la señal de un controlador PID."""
+        # --- Umbrales de ESCALADO (cuando la latencia es ALTA, señal NEGATIVA) ---
+        SCALE_UP_SEVERE_THRESHOLD = -0.16  # Corresponde a +100ms de latencia (300ms total)
+        SCALE_UP_MODERATE_THRESHOLD = -0.112 # Corresponde a +70ms de latencia (270ms total)
+        SCALE_UP_MILD_THRESHOLD = -0.048   # Corresponde a +30ms de latencia (230ms total)
         # --- Umbrales de ESCALADO (latencia ALTA -> error NEGATIVO -> señal NEGATIVA) ---
         SCALE_UP_SEVERE_THRESHOLD = -0.16   # Error > 94ms (Latencia > 294ms)
         SCALE_UP_MODERATE_THRESHOLD = -0.12   # Error > 70ms (Latencia > 270ms)
         SCALE_UP_MILD_THRESHOLD = -0.08     # Error > 47ms (Latencia > 247ms)
 
+        # --- Umbrales de DESESCALADO (cuando la latencia es BAJA, señal POSITIVA) ---
+        SCALE_DOWN_SEVERE_THRESHOLD = 0.16   # Corresponde a -100ms de latencia (100ms total)
+        SCALE_DOWN_MODERATE_THRESHOLD = 0.112  # Corresponde a -70ms de latencia (130ms total)
+        SCALE_DOWN_MILD_THRESHOLD = 0.048    # Corresponde a -30ms de latencia (170ms total)
         # --- ZONA MUERTA (DEAD ZONE) ---
         # Si la señal está entre -0.05 y +0.05, no hacemos nada.
         # Esto evita oscilaciones constantes (thrashing) cerca del punto de equilibrio.
@@ -136,9 +144,13 @@ class SystemManager:
             logging.info(f"Manager: Señal PID severa ({pid_signal:.2f}). Creando 4 instancias.")
             for _ in range(4): self.create_instance()
         elif pid_signal < SCALE_UP_MODERATE_THRESHOLD:
+            logging.info(f"Manager: Señal PID moderada ({pid_signal:.2f}). Creando 2 instancias.")
+            for _ in range(2): self.create_instance()
             logging.info(f"Manager: Señal PID moderada ({pid_signal:.2f}). Creando 1 instancia.")
             self.create_instance()
         elif pid_signal < SCALE_UP_MILD_THRESHOLD:
+            logging.info(f"Manager: Señal PID leve ({pid_signal:.2f}). Creando 1 instancia.")
+            self.create_instance()
             # Este umbral se elimina para ensanchar la zona muerta.
             pass
         # Lógica de Desescalado (Scale-Down)
@@ -146,9 +158,13 @@ class SystemManager:
             logging.info(f"Manager: Señal PID de baja carga severa ({pid_signal:.2f}). Destruyendo 4 instancias.")
             for _ in range(4): self.destroy_instance()
         elif pid_signal > SCALE_DOWN_MODERATE_THRESHOLD:
+            logging.info(f"Manager: Señal PID de baja carga moderada ({pid_signal:.2f}). Destruyendo 2 instancias.")
+            for _ in range(2): self.destroy_instance()
             logging.info(f"Manager: Señal PID de baja carga moderada ({pid_signal:.2f}). Destruyendo 1 instancia.")
             self.destroy_instance()
         elif pid_signal > SCALE_DOWN_MILD_THRESHOLD:
+            logging.info(f"Manager: Señal PID de baja carga leve ({pid_signal:.2f}). Destruyendo 1 instancia.")
+            self.destroy_instance()
             # Este umbral se elimina para ensanchar la zona muerta.
             pass
 
