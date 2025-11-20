@@ -27,9 +27,20 @@ class Controlador:
         # --- Lógica del Controlador PID ---
         # Componente Proporcional
         P = self.Kp * error
+
+        # Componente Integral
+        self.integral += error
+        I = self.Ki * self.integral
+
+        # Componente Derivativo
+        derivada = error - self.error_previo
+        D = self.Kd * derivada
         
-        # Por ahora, solo usamos el componente Proporcional
-        pid_signal = P
+        # Actualizar el error previo para la siguiente iteración
+        self.error_previo = error
         
-        logging.info(f"Controlador: Recibido error={error*1000:.2f}ms. Generando señal PID={pid_signal:.3f}")
+        # Señal de control total
+        pid_signal = P + I + D
+        
+        logging.info(f"Controlador: Recibido error={error*1000:.2f}ms. Señal (P:{P:.2f}, I:{I:.2f}, D:{D:.2f}) -> PID={pid_signal:.3f}")
         self.manager.scale(pid_signal)

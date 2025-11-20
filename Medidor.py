@@ -65,6 +65,8 @@ class Medidor:
             if ocupado and arrival_time:
                 latencia_total += (tiempo_referencia - arrival_time)
                 peticiones_en_proceso += 1
+
+
         
         # 2. Medir latencia de peticiones EN COLA
         peticiones_en_cola = self.manager.get_peticiones_pendientes_snapshot()

@@ -1,22 +1,27 @@
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.ticker import MaxNLocator
+import tkinter as tk
 import logging
 
 class Plotter:
     """
     Genera gráficos a partir de los datos recolectados en la simulación.
     """
-    def __init__(self, data_collector, latencia_deseada_ms, window_size_seconds=60):
+    def __init__(self, root, data_collector, latencia_deseada_ms, window_size_seconds=60):
         """
         Inicializa el plotter para visualización en tiempo real.
         """
+        self.root = root
         self.data_collector = data_collector
         self.latencia_deseada_ms = latencia_deseada_ms
         self.window_size_seconds = window_size_seconds
 
         self.fig, (self.ax1, self.ax2, self.ax3, self.ax4, self.ax5) = plt.subplots(5, 1, figsize=(12, 15), sharex=True)
         self.fig.suptitle('Análisis en Tiempo Real del Sistema de Auto-Escalado', fontsize=16)
+
+        self._setup_axes()
 
         # Subplot 1: Latencia Promedio
         self.line1, = self.ax1.plot([], [], label='Latencia Promedio', color='b')
@@ -113,11 +118,14 @@ class Plotter:
 
         return self.line1, self.line2, self.line3, self.line4, self.line5
 
+    def _setup_axes(self):
+        """Configura las propiedades iniciales de los ejes."""
+        # Este método puede ser expandido si se necesita más configuración
+        pass
+
     def run_animation(self):
         """Inicia la animación y muestra el gráfico."""
-        ani = FuncAnimation(self.fig, self._update_plot, blit=False, interval=200)
+        canvas = FigureCanvasTkAgg(self.fig, master=self.root)
+        canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+        self.ani = FuncAnimation(self.fig, self._update_plot, blit=False, interval=200)
         plt.tight_layout(rect=[0, 0, 1, 0.96])
-        
-        # Muestra la ventana. Esta llamada es bloqueante y se ejecutará hasta que
-        # el usuario cierre la ventana del gráfico.
-        plt.show()
