@@ -1,57 +1,113 @@
 import time
 import logging
 import threading
-import csv
 import random
 
 class Cliente:
     """
-    Encapsula la lógica de un cliente que genera una carga de trabajo
-    programada en un hilo separado.
+    Genera una carga de trabajo de fondo y permite disparar ataques DoS.
+    En estado estable, con una sola instancia, la latencia promedio tenderá
+    a oscilar alrededor del setpoint inicial (base_processing_ms ≈ latencia deseada).
     """
-    def __init__(self, manager, frecuencia_promedio_hz=5, numero_peticiones=500):
+    def __init__(self, manager, frecuencia_promedio_hz=0.25, base_processing_ms=1000):
         """
-        Inicializa el cliente.
-
-        :param manager: La instancia de SystemManager a la que se enviarán las peticiones.
-        :param frecuencia_promedio_hz: La frecuencia promedio de llegada de peticiones (en Hz).
-        :param numero_peticiones: El número total de peticiones a generar.
+        :param manager: instancia de SystemManager que recibe las peticiones.
+        :param frecuencia_promedio_hz: frecuencia promedio de llegada de peticiones (Hz).
+        :param base_processing_ms: tiempo de procesamiento base (ms), típicamente igual
+                                   a la latencia deseada inicial.
         """
         self.manager = manager
-        self.thread = None
-        self.numero_peticiones = numero_peticiones
+        self.frecuencia_promedio_hz = frecuencia_promedio_hz
+        self.base_processing_ms = base_processing_ms
+        self._thread = None
+        self._running = threading.Event()
+        self.sim_start_time = None
 
-        # Calcula el tiempo de espera promedio en milisegundos a partir de la frecuencia
-        tiempo_espera_promedio_ms = (1 / frecuencia_promedio_hz) * 1000
-
-        # Crea un intervalo de tiempo aleatorio (ej. 50% a 150% del promedio)
+        # Calcula el tiempo de espera promedio en ms y define un rango aleatorio
+        tiempo_espera_promedio_ms = (1 / frecuencia_promedio_hz) * 1000 if frecuencia_promedio_hz > 0 else 1000
         self.espera_min_ms = int(tiempo_espera_promedio_ms * 0.5)
         self.espera_max_ms = int(tiempo_espera_promedio_ms * 1.5)
-        logging.info(f"Cliente configurado para ~{frecuencia_promedio_hz}Hz. Intervalo de espera: [{self.espera_min_ms}ms - {self.espera_max_ms}ms]")
-        
+        logging.info(
+            "Cliente configurado para ~%.2f Hz. Intervalo de espera: [%d ms - %d ms]",
+            frecuencia_promedio_hz,
+            self.espera_min_ms,
+            self.espera_max_ms,
+        )
+
+        # Estado de ataque DoS
+        self._dos_lock = threading.Lock()
+        self._dos_activo = False
+
     def iniciar(self, sim_start_time):
-        """Inicia el hilo del cliente para que comience a generar peticiones."""
-        self.thread = threading.Thread(target=self._generar_peticiones, args=(sim_start_time,))
-        self.thread.start()
+        """Inicia el hilo del cliente para que comience a generar peticiones de fondo."""
+        self.sim_start_time = sim_start_time
+        self._running.set()
+        self._thread = threading.Thread(target=self._generar_carga_base, name="Cliente", daemon=True)
+        self._thread.start()
+        logging.info("Cliente: hilo de carga base iniciado.")
 
-    def _generar_peticiones(self, sim_start_time):
-        """Lógica interna del hilo: genera y envía peticiones de forma aleatoria."""
-        logging.info(f"--> Hilo Cliente: Iniciado. Generando {self.numero_peticiones} peticiones aleatorias.")
-        for _ in range(self.numero_peticiones):
-            # Generamos tiempos aleatorios para la espera y el procesamiento
+    def detener(self):
+        """Detiene el hilo de generación de carga."""
+        self._running.clear()
+        if self._thread is not None:
+            self._thread.join(timeout=2.0)
+        logging.info("Cliente: detenido.")
+
+    def _generar_carga_base(self):
+        """
+        Genera peticiones a baja frecuencia para representar el estado estable.
+        El tiempo de procesamiento está centrado en base_processing_ms (≈ setpoint).
+        """
+        while self._running.is_set():
             espera_ms = random.randint(self.espera_min_ms, self.espera_max_ms)
-            procesamiento_ms = 100 # Tiempo de procesamiento constante
-
-            # Esperamos el tiempo aleatorio
             time.sleep(espera_ms / 1000.0)
-            
-            procesamiento_sec = procesamiento_ms / 1000.0
-            # Usamos el tiempo relativo al inicio de la simulación para la consistencia
-            self.manager.receive_request(time.time() - sim_start_time, procesamiento_sec)
-        
-        logging.info(f"--> Hilo Cliente: Se han enviado las {self.numero_peticiones} peticiones.")
 
-    def esperar_finalizacion(self):
-        """Espera a que el hilo del cliente termine su ejecución."""
-        if self.thread:
-            self.thread.join()
+            # Procesamiento alrededor del setpoint (±20%)
+            procesamiento_ms = random.randint(
+                int(self.base_processing_ms * 0.8),
+                int(self.base_processing_ms * 1.2),
+            )
+            procesamiento_sec = procesamiento_ms / 1000.0
+            arrival_time = time.time() - self.sim_start_time
+            self.manager.receive_request(arrival_time, procesamiento_sec)
+
+    def ejecutar_dos(self, duracion_s=6.0, frecuencia_promedio_hz=8.0):
+        """
+        Dispara un ataque DoS durante `duracion_s` segundos,
+        generando muchas más peticiones por segundo.
+        """
+        with self._dos_lock:
+            if self._dos_activo:
+                logging.info("Cliente: ya hay un ataque DoS en curso.")
+                return
+            self._dos_activo = True
+
+        logging.warning(
+            "⚠️ Cliente: ATAQUE DoS INICIADO (%.1f RPS durante %.1f s)",
+            frecuencia_promedio_hz,
+            duracion_s,
+        )
+
+        def _hilo_dos():
+            fin = time.time() + duracion_s
+            while time.time() < fin and self._running.is_set():
+                if frecuencia_promedio_hz > 0:
+                    dt = random.expovariate(frecuencia_promedio_hz)
+                else:
+                    dt = 0.01
+                time.sleep(dt)
+
+                # En DoS usamos rangos similares pero suficientes para saturar la cola
+                procesamiento_ms = random.randint(
+                    int(self.base_processing_ms * 0.8),
+                    int(self.base_processing_ms * 1.2),
+                )
+                procesamiento_sec = procesamiento_ms / 1000.0
+                arrival_time = time.time() - self.sim_start_time
+                self.manager.receive_request(arrival_time, procesamiento_sec)
+
+            logging.info("Cliente: ataque DoS finalizado.")
+            with self._dos_lock:
+                self._dos_activo = False
+
+        threading.Thread(target=_hilo_dos, name="Cliente-DoS", daemon=True).start()
