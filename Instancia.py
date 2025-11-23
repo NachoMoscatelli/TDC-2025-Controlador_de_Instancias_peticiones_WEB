@@ -7,7 +7,7 @@ class Instancia:
     """
     Representa una instancia de servidor que puede procesar una petición a la vez.
     """
-    def __init__(self, id_instancia, semaforo):
+    def __init__(self, id_instancia, semaforo, data_collector):
         self.id = id_instancia
         self.peticiones = queue.Queue(maxsize=1)
         self._thread = threading.Thread(target=self._bucle_procesamiento, daemon=True)
@@ -16,6 +16,7 @@ class Instancia:
         self.arrival_time_actual = None
         self._ocupado = False
         self._activo = threading.Event()
+        self.data_collector = data_collector
 
     def iniciar(self):
         if not self._thread.is_alive():
@@ -51,7 +52,7 @@ class Instancia:
             peticion = self.peticiones.get()
             if peticion is None:
                 break
-            _, tiempo_procesamiento = peticion
+            arrival_time, tiempo_procesamiento = peticion
             with self._lock:
                 self._ocupado = True
             logging.info(
@@ -60,6 +61,12 @@ class Instancia:
                 tiempo_procesamiento,
             )
             time.sleep(tiempo_procesamiento)
+            
+            # Informar al DataCollector sobre la petición resuelta
+            finish_time = time.time() - self.data_collector.start_time
+            latencia_total_s = finish_time - arrival_time
+            self.data_collector.collect_peticion_resuelta(latencia_total_s)
+
             with self._lock:
                 self._ocupado = False
                 self.arrival_time_actual = None

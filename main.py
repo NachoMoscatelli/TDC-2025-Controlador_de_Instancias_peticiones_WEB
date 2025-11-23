@@ -27,23 +27,23 @@ def main():
     latencia_deseada_s = 1.0
     latencia_deseada_ms = int(latencia_deseada_s * 1000)
 
-    manager = SystemManager()
     data_collector = DataCollector(sim_start_time)
-    controlador = Controlador(manager, Kp=1.0, Kd=0.5)
+    manager = SystemManager(data_collector)
+    controlador = Controlador(manager, Kp=1.0, Kd=1.5, deadband_s=0.2)
     medidor = Medidor(
         manager,
         controlador,
         data_collector,
         sim_start_time,
         latencia_deseada_ms=latencia_deseada_ms,
-        intervalo_medicion_ms=50,
+        intervalo_medicion_ms=1000/60,  # Frecuencia de muestreo de 60 Hz (~16.7 ms)
     )
 
     # Cliente: base_processing_ms ≈ setpoint para que la latencia estable
     # con una instancia oscile alrededor de 1 s.
     cliente = Cliente(
         manager,
-        frecuencia_promedio_hz=0.7,      # llegadas relativamente espaciadas
+        frecuencia_promedio_hz=0.5,      # Carga base conservadora (1 petición cada 2 segundos)
         base_processing_ms=latencia_deseada_ms,
     )
 

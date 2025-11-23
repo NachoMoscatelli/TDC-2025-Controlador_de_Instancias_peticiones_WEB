@@ -9,11 +9,12 @@ class SystemManager:
     Gestiona instancias de procesamiento y distribuye las peticiones.
     """
     MIN_SERVERS = 1
-    MAX_SERVERS = 50
 
-    def __init__(self):
+    def __init__(self, data_collector):
         self.peticiones_pendientes = queue.Queue()
         self.instancias = []
+        self.data_collector = data_collector
+        self.max_servers = 50  # Límite superior de instancias, ahora configurable
         self.cola_lock = threading.Lock()
         self.peticiones_nuevas_sem = threading.Semaphore(0)
         self.instancias_libres_sem = threading.Semaphore(0)
@@ -28,7 +29,7 @@ class SystemManager:
     def create_instance(self):
         instance_id = self.next_instance_id
         logging.info("Manager: Creando instancia %s...", instance_id)
-        nueva_instancia = Instancia(id_instancia=instance_id, semaforo=self.instancias_libres_sem)
+        nueva_instancia = Instancia(id_instancia=instance_id, semaforo=self.instancias_libres_sem, data_collector=self.data_collector)
         nueva_instancia.iniciar()
         self.instancias.append(nueva_instancia)
         # nueva instancia libre:
@@ -108,7 +109,7 @@ class SystemManager:
         """
         actual = len(self.instancias)
         deseado = math.ceil(actual + control_signal)
-        deseado = max(self.MIN_SERVERS, min(self.MAX_SERVERS, deseado))
+        deseado = max(self.MIN_SERVERS, min(self.max_servers, deseado))
 
         if deseado == actual:
             return

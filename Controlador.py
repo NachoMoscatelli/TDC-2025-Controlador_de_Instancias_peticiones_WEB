@@ -6,7 +6,7 @@ class Controlador:
     La señal de control resultante indica cuánto variar la cantidad de instancias.
     """
 
-    def __init__(self, system_manager, Kp=1.0, Kd=0.2):
+    def __init__(self, system_manager, Kp=1.0, Kd=0.2, deadband_s=0.2):
         """
         :param system_manager: gestor del sistema al que se le enviará la señal de control.
         :param Kp: Ganancia proporcional (queda implícita en los umbrales).
@@ -15,6 +15,7 @@ class Controlador:
         self.manager = system_manager
         self.Kp = Kp
         self.Kd = Kd
+        self.deadband_s = deadband_s
         self.error_previo = 0.0
         self.step = 0  # contador discreto de tiempo (para logs)
 
@@ -22,23 +23,23 @@ class Controlador:
 
     @staticmethod
     def _umbrales(error_s: float) -> int:
+        """ (DEPRECATED - Use la versión de instancia) """
+        # Esta función estática ya no se usa, pero se mantiene por si acaso.
+        # La lógica ahora está en la versión de instancia que usa self.deadband_s
+        abs_error = abs(error_s)
+        if abs_error < 0.2: return 0
+        elif abs_error < 1.0: return -1 if error_s > 0 else 1
+        else: return -2 if error_s > 0 else 2
+
+    def _umbrales_con_banda_muerta(self, error_s: float) -> int:
         """
         Devuelve cuántas instancias se deberían agregar (valor positivo)
         o quitar (valor negativo) en función del error de latencia.
-
-        Umbrales (en segundos):
-          |error| < 0.4 s        -> 0      (banda muerta, no actuamos)
-          0.4 s ≤ |error| < 1.0 s -> ±1
-          |error| ≥ 1.0 s         -> ±2
-
-        Recordar: error = setpoint - medida
-          - error < 0  => latencia medida > deseada  => faltan instancias  => señal POSITIVA
-          - error > 0  => latencia medida < deseada  => sobran instancias  => señal NEGATIVA
         """
         abs_error = abs(error_s)
-        if abs_error < 0.4:
+        if abs_error < self.deadband_s:
             return 0
-        elif abs_error < 1.0:
+        elif abs_error < self.deadband_s + 0.6: # Umbral intermedio
             return -1 if error_s > 0 else 1
         else:
             return -2 if error_s > 0 else 2
@@ -58,7 +59,7 @@ class Controlador:
         self.step += 1
 
         # Parte "P": lógica por umbrales (entrega un entero discreto)
-        accion_por_umbrales = self._umbrales(error_s)
+        accion_por_umbrales = self._umbrales_con_banda_muerta(error_s)
 
         # Parte "D": derivada discreta (Δerror) escalada por Kd
         derivada = error_s - self.error_previo

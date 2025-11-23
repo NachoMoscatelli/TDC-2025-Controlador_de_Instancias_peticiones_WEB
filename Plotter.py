@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from matplotlib.ticker import MaxNLocator
-from matplotlib.widgets import TextBox, Button
+from matplotlib.widgets import TextBox, Button, Slider
 import logging
 
 class Plotter:
@@ -19,10 +19,17 @@ class Plotter:
         self.cliente = cliente
         self.window_size_seconds = window_size_seconds
 
+        # --- Valores para los sliders de DoS ---
+        self.dos_duracion_s = 6.0
+        self.dos_frecuencia_hz = 8.0
+        # ------------------------------------
+
         self.fig, (self.ax1, self.ax2, self.ax3, self.ax4, self.ax5) = plt.subplots(
             5, 1, figsize=(12, 15), sharex=True
         )
-        self.fig.suptitle('Análisis en Tiempo Real del Sistema de Auto-Escalado', fontsize=16)
+        # Establecer el título solo en la barra de la ventana
+        title = 'Análisis en Tiempo Real: Sistema de Auto-Escalado'
+        self.fig.canvas.manager.set_window_title(title)
 
         # Subplot 1: Latencia Promedio (s)
         self.line1, = self.ax1.plot([], [], label='Latencia Promedio', color='b')
@@ -65,17 +72,83 @@ class Plotter:
         self.ax5.grid(True)
         self.ax5.yaxis.set_major_locator(MaxNLocator(integer=True))
 
-        # --- Controles interactivos (arriba de todo) ---
+        # Ajustar layout para dejar espacio para los controles en la parte superior
+        self.fig.subplots_adjust(left=0.08, right=0.95, top=0.82, bottom=0.05, hspace=0.5)
+
+        # --- Controles interactivos (en la parte superior) ---
+
+        # Etiqueta para tiempo de procesamiento promedio (arriba)
+        proc_time_text = f"T. Procesamiento Base: {self.cliente.base_processing_ms} ms (±20%)"
+        self.fig.text(0.05, 0.95, proc_time_text, fontsize=10, transform=self.fig.transFigure)
+
+        # Etiqueta para frecuencia de peticiones base
+        freq_base_text = f"Freq. Peticiones Base: {self.cliente.frecuencia_promedio_hz:.2f} Hz (Estable)"
+        self.fig.text(0.05, 0.92, freq_base_text, fontsize=10, transform=self.fig.transFigure)
+
 
         # TextBox para setpoint en segundos
-        textbox_ax = self.fig.add_axes([0.60, 0.96, 0.30, 0.03])
-        self.text_box = TextBox(textbox_ax, "Setpoint [s]: ", initial=f"{self.latencia_deseada_s:.2f}")
+        self.fig.text(0.25, 0.95, "Latencia Objetivo:", fontsize=10)
+        textbox_ax = self.fig.add_axes([0.38, 0.945, 0.06, 0.03])
+        self.text_box = TextBox(textbox_ax, "", initial=f"{self.latencia_deseada_s:.2f}")
         self.text_box.on_submit(self._on_setpoint_change)
 
-        # Botón para ataque DoS
-        button_ax = self.fig.add_axes([0.30, 0.96, 0.20, 0.03])
+        # TextBox para cantidad máxima de instancias
+        self.fig.text(0.25, 0.91, "Max Instancias:", fontsize=10)
+        max_inst_ax = self.fig.add_axes([0.38, 0.905, 0.06, 0.03])
+        self.max_inst_textbox = TextBox(max_inst_ax, "", initial=f"{self.medidor.manager.max_servers}")
+        self.max_inst_textbox.on_submit(self._on_max_instancias_change)
+
+        # --- Etiquetas informativas para ganancias Kp y Kd ---
+        controlador = self.medidor.controlador
+        kp_text = f"Ganancia Kp: {controlador.Kp:.2f}"
+        kd_text = f"Ganancia Kd: {controlador.Kd:.2f}"
+        self.fig.text(0.05, 0.88, kp_text, fontsize=10, transform=self.fig.transFigure)
+        self.fig.text(0.05, 0.85, kd_text, fontsize=10, transform=self.fig.transFigure)
+
+        # Etiqueta para el cumplimiento de SLO
+        self.error_band_s = 0.4 # Banda para medir el SLO
+        umbral_max_slo = self.latencia_deseada_s + self.error_band_s
+        self.slo_band_text_obj = self.fig.text(0.25, 0.88, f"SLO Lat. Máx: {umbral_max_slo:.1f}s", fontsize=10, transform=self.fig.transFigure)
+
+        self.slo_text = self.fig.text(0.25, 0.85, "SLO (1 min): --%", fontsize=10, transform=self.fig.transFigure)
+        self.fig.text(0.05, 0.82, f"Banda Muerta Ctr: ±{controlador.deadband_s}s", fontsize=10, transform=self.fig.transFigure)
+
+
+        # Slider para frecuencia de muestreo (Hz)
+        slider_muestreo_ax = self.fig.add_axes([0.55, 0.95, 0.40, 0.02])
+        self.muestreo_slider = Slider(
+            ax=slider_muestreo_ax,
+            label='Frecuencia Muestreo (Hz)',
+            valmin=1,  # 1 Hz (1000 ms)
+            valmax=100, # 100 Hz (10 ms)
+            valinit=1 / self.medidor.intervalo_medicion_s,
+            valstep=1,
+        )
+        self.muestreo_slider.on_changed(self._on_muestreo_change)
+
+        # --- Controles de Ataque DoS en una línea ---
+
+        # 1. Botón para ataque DoS
+        button_ax = self.fig.add_axes([0.55, 0.89, 0.15, 0.04])
         self.dos_button = Button(button_ax, "⚡ Iniciar Ataque DoS")
         self.dos_button.on_clicked(self._on_dos_click)
+
+        # 2. Recuadro para duración de ataque DoS
+        self.fig.text(0.73, 0.90, "Duración (s):", fontsize=10)
+        dos_duracion_ax = self.fig.add_axes([0.81, 0.895, 0.08, 0.03])
+        self.dos_duracion_textbox = TextBox(
+            dos_duracion_ax, "", initial=f"{self.dos_duracion_s:.1f}"
+        )
+        self.dos_duracion_textbox.on_submit(self._on_dos_duracion_change)
+
+        # 3. Slider para frecuencia de ataque DoS
+        slider_dos_freq_ax = self.fig.add_axes([0.55, 0.85, 0.40, 0.02])
+        self.dos_freq_slider = Slider(
+            ax=slider_dos_freq_ax,
+            label='Frecuencia Ataque (Hz)',
+            valmin=1, valmax=100, valinit=self.dos_frecuencia_hz, valstep=1,
+        )
+        self.dos_freq_slider.on_changed(lambda val: setattr(self, 'dos_frecuencia_hz', val))
 
     # ---------- Callbacks de interfaz ----------
 
@@ -84,22 +157,70 @@ class Plotter:
             nuevo_sp_s = float(text)
             if nuevo_sp_s <= 0:
                 logging.warning("Setpoint debe ser mayor que 0.")
+                self.text_box.set_val(f"{self.latencia_deseada_s:.2f}") # Revertir
                 return
         except ValueError:
             logging.warning("Valor de setpoint inválido. Use, por ejemplo, 1 o 0.5.")
+            self.text_box.set_val(f"{self.latencia_deseada_s:.2f}") # Revertir
             return
 
         self.latencia_deseada_s = nuevo_sp_s
         self.medidor.latencia_deseada_s = nuevo_sp_s
 
+        # --- SOLUCIÓN: Sincronizar el cliente con el nuevo setpoint ---
+        self.cliente.base_processing_ms = int(nuevo_sp_s * 1000)
+
         self.setpoint_line.set_ydata([nuevo_sp_s, nuevo_sp_s])
         self.setpoint_line.set_label(f'Latencia Deseada ({nuevo_sp_s:.2f}s)')
         self.ax1.legend(loc="upper right")
 
+        # Actualizar la etiqueta del umbral de SLO
+        umbral_max_slo = self.latencia_deseada_s + self.error_band_s
+        self.slo_band_text_obj.set_text(f"SLO Lat. Máx: {umbral_max_slo:.1f}s")
+
         logging.info("Nuevo setpoint establecido: %.3f s.", nuevo_sp_s)
 
     def _on_dos_click(self, event):
-        self.cliente.ejecutar_dos()
+        logging.info("Disparando ataque DoS con Duración=%.1fs y Frecuencia=%.1f RPS",
+                     self.dos_duracion_s, self.dos_frecuencia_hz)
+        self.cliente.ejecutar_dos(duracion_s=self.dos_duracion_s, frecuencia_promedio_hz=self.dos_frecuencia_hz)
+
+    def _on_dos_duracion_change(self, text: str):
+        try:
+            nueva_duracion = float(text)
+            if nueva_duracion <= 0:
+                logging.warning("La duración del ataque debe ser mayor a 0.")
+                self.dos_duracion_textbox.set_val(f"{self.dos_duracion_s:.1f}")
+                return
+            self.dos_duracion_s = nueva_duracion
+            logging.info("Nueva duración de ataque DoS establecida: %.1f s", nueva_duracion)
+        except ValueError:
+            logging.warning("Valor de duración de ataque inválido.")
+            self.dos_duracion_textbox.set_val(f"{self.dos_duracion_s:.1f}")
+
+    def _on_muestreo_change(self, freq_hz):
+        if freq_hz == 0: return
+        nuevo_intervalo_s = 1.0 / freq_hz
+        self.medidor.intervalo_medicion_s = nuevo_intervalo_s
+        logging.info("Nueva frecuencia de muestreo: %.1f Hz (intervalo: %.3f s)", freq_hz, nuevo_intervalo_s)
+
+    def _on_max_instancias_change(self, text: str):
+        try:
+            nuevo_max = int(text)
+            manager = self.medidor.manager
+            num_actual = len(manager.instancias)
+
+            if nuevo_max < manager.MIN_SERVERS or nuevo_max < num_actual:
+                raise ValueError(f"Debe ser >= {max(manager.MIN_SERVERS, num_actual)}")
+
+            manager.max_servers = nuevo_max
+            logging.info("Nuevo máximo de instancias establecido: %d", nuevo_max)
+
+        except ValueError as e:
+            logging.warning("Valor de max_instancias inválido: %s", e)
+            # Revertir al valor actual en la caja de texto
+            self.max_inst_textbox.set_val(f"{self.medidor.manager.max_servers}")
+
 
     # ---------- Actualización de gráficos ----------
 
@@ -161,9 +282,17 @@ class Plotter:
                     ax.relim()
                     ax.autoscale_y()
 
+        # Actualizar texto de SLO
+        slo_compliance = self.data_collector.get_slo_compliance(
+            window_seconds=60,
+            setpoint_s=self.latencia_deseada_s,
+            error_band_s=self.error_band_s
+        )
+        self.slo_text.set_text(f"SLO (1 min): {slo_compliance:.1f}%")
+
         return self.line1, self.line2, self.line3, self.line4, self.line5
 
     def run_animation(self):
         ani = FuncAnimation(self.fig, self._update_plot, blit=False, interval=200)
-        plt.tight_layout(rect=[0, 0, 1, 0.94])
+        # plt.tight_layout() # No usar tight_layout con subplots_adjust y add_axes manuales
         plt.show()
