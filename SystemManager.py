@@ -56,7 +56,7 @@ class SystemManager:
                 self.instancias.remove(instancia)
                 return
 
-        # Estado inconsistente: devolvemos el ticket del semáforo
+        # Estado inconsistente: devolvemos el ticket del semáforo.
         self.instancias_libres_sem.release()
 
     def receive_request(self, arrival_time, processing_time):
