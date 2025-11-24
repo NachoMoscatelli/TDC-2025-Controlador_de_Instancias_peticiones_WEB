@@ -127,3 +127,10 @@ python main.py
 ```
 
 Al ejecutarlo, se abrirá una ventana con los gráficos de la simulación. Para finalizar, simplemente cierra la ventana del gráfico.
+
+## Descarga Ejecutable
+
+Si posee un SO Windows puede intentar descargar el ejecutable desde el siguiente drive:
+https://drive.google.com/drive/folders/1Y_gxwhSxNzqg6aU1tWvVl2L8OBumby8B?usp=sharing
+
+El archivo se encuentra comprimido, asi que deberá descomprimirlo primero.
