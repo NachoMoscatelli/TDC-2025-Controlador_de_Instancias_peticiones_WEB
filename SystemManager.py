@@ -82,6 +82,17 @@ class SystemManager:
             self._peticiones_nuevas_contador = 0
             return count
 
+    def clear_pending_requests(self):
+        """
+        Vacía la cola de peticiones pendientes al finalizar la simulación.
+        """
+        with self.cola_lock:
+            num_peticiones_descartadas = self.peticiones_pendientes.qsize()
+            # Accedemos a la estructura de datos subyacente (deque) para limpiarla.
+            self.peticiones_pendientes.queue.clear()
+            if num_peticiones_descartadas > 0:
+                logging.info(f"Se limpió la cola. Se descartaron {num_peticiones_descartadas} peticiones pendientes.")
+
     def _bucle_despachador(self):
         while self._activo.is_set():
             self.peticiones_nuevas_sem.acquire()
@@ -140,8 +151,10 @@ class SystemManager:
                 self.destroy_instance()
 
     def detener_instancias(self):
-        logging.info("Manager: Esperando a que se procesen todas las peticiones en cola...")
-        self.peticiones_pendientes.join()
+        # Ya no esperamos a que la cola se procese, porque en main.py
+        # se llama a clear_pending_requests() justo antes.
+        # logging.info("Manager: Esperando a que se procesen todas las peticiones en cola...")
+        # self.peticiones_pendientes.join()
         with self.cola_lock:
             self.peticiones_pendientes.put(None)
         self.peticiones_nuevas_sem.release()

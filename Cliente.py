@@ -26,6 +26,7 @@ class Cliente:
         # Calcula el tiempo de espera promedio en ms y define un rango aleatorio
         tiempo_espera_promedio_ms = (1 / frecuencia_promedio_hz) * 1000 if frecuencia_promedio_hz > 0 else 1000
         self.espera_min_ms = int(tiempo_espera_promedio_ms * 0.5)
+        self.tiempo_espera_promedio_ms = tiempo_espera_promedio_ms
         self.espera_max_ms = int(tiempo_espera_promedio_ms * 1.5)
         logging.info(
             "Cliente configurado para ~%.2f Hz. Intervalo de espera: [%d ms - %d ms]",
@@ -58,8 +59,8 @@ class Cliente:
         Genera peticiones a baja frecuencia para representar el estado estable.
         El tiempo de procesamiento está centrado en base_processing_ms (≈ setpoint).
         """
-        while self._running.is_set():
-            espera_ms = random.randint(self.espera_min_ms, self.espera_max_ms)
+        while self._running.is_set(): # Usar el tiempo de espera promedio directamente
+            espera_ms = self.tiempo_espera_promedio_ms
             time.sleep(espera_ms / 1000.0)
 
             # Procesamiento alrededor del setpoint (±20%)
@@ -92,8 +93,8 @@ class Cliente:
         def _hilo_dos():
             fin = time.time() + duracion_s
             while time.time() < fin and self._running.is_set():
-                if frecuencia_promedio_hz > 0:
-                    dt = random.expovariate(frecuencia_promedio_hz)
+                if frecuencia_promedio_hz > 0: # Usar un tiempo de inter-llegada fijo para DoS
+                    dt = 1 / frecuencia_promedio_hz
                 else:
                     dt = 0.01
                 time.sleep(dt)

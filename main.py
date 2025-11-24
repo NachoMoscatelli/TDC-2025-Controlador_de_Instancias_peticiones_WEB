@@ -61,6 +61,7 @@ def main():
 
     # Cuando se cierra la ventana, apagamos todo ordenadamente
     cliente.detener()
+    manager.clear_pending_requests() # Limpiamos la cola de peticiones
     manager.detener_instancias()
     medidor.detener()
     logging.info("Programa finalizado.")

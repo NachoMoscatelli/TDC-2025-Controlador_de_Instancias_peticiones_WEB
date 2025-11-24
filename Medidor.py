@@ -90,7 +90,12 @@ class Medidor:
 
         # 2. Medir latencia de peticiones en cola
         peticiones_en_cola = self.manager.get_peticiones_pendientes_snapshot()
-        for arrival_time, _ in peticiones_en_cola:
+        # Durante el apagado, la cola puede contener un 'None' para detener el dispatcher.
+        # Lo filtramos para evitar un TypeError al desempaquetar.
+        for peticion in peticiones_en_cola:
+            if peticion is None:
+                continue
+            arrival_time, _ = peticion
             if arrival_time is not None:
                 latencia_total += (tiempo_referencia - arrival_time)
 
