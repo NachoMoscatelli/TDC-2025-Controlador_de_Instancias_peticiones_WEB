@@ -63,11 +63,12 @@ class Cliente:
             time.sleep(espera_ms / 1000.0)
 
             # Procesamiento alrededor del setpoint (±20%)
-            procesamiento_ms = random.randint(
-                int(self.base_processing_ms * 0.8),
-                int(self.base_processing_ms * 1.2),
-            )
-            procesamiento_sec = procesamiento_ms / 1000.0
+            # procesamiento_ms = random.randint(
+            #     int(self.base_processing_ms * 0.8),
+            #     int(self.base_processing_ms * 1.2),
+            # )
+            # procesamiento_sec = procesamiento_ms / 1000.0
+            procesamiento_sec = 1
             arrival_time = time.time() - self.sim_start_time
             self.manager.receive_request(arrival_time, procesamiento_sec)
 
@@ -98,11 +99,12 @@ class Cliente:
                 time.sleep(dt)
 
                 # En DoS usamos rangos similares pero suficientes para saturar la cola
-                procesamiento_ms = random.randint(
-                    int(self.base_processing_ms * 0.8),
-                    int(self.base_processing_ms * 1.2),
-                )
-                procesamiento_sec = procesamiento_ms / 1000.0
+                # procesamiento_ms = random.randint(
+                #     int(self.base_processing_ms * 0.8),
+                #     int(self.base_processing_ms * 1.2),
+                # )
+                # procesamiento_sec = procesamiento_ms / 1000.0
+                procesamiento_sec = 1
                 arrival_time = time.time() - self.sim_start_time
                 self.manager.receive_request(arrival_time, procesamiento_sec)
 

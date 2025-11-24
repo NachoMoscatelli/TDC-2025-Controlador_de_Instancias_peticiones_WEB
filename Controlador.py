@@ -6,7 +6,7 @@ class Controlador:
     La señal de control resultante indica cuánto variar la cantidad de instancias.
     """
 
-    def __init__(self, system_manager, Kp=1.0, Kd=0.2, deadband_s=0.2):
+    def __init__(self, system_manager, Kp=1.0, Kd=0.2, deadband_s=0.1):
         """
         :param system_manager: gestor del sistema al que se le enviará la señal de control.
         :param Kp: Ganancia proporcional (queda implícita en los umbrales).
@@ -58,14 +58,15 @@ class Controlador:
         """
         self.step += 1
 
-        # Parte "P": lógica por umbrales (entrega un entero discreto)
-        accion_por_umbrales = self._umbrales_con_banda_muerta(error_s)
+        # Parte "P": proporcional directa al error, con banda muerta.
+        # La señal de control es negativa para error positivo (bajar latencia)
+        accion_proporcional = -self.Kp * error_s if abs(error_s) > self.deadband_s else 0
 
         # Parte "D": derivada discreta (Δerror) escalada por Kd
         derivada = error_s - self.error_previo
-        accion_derivativa = self.Kd * derivada
+        accion_derivativa = -self.Kd * derivada
 
-        control_signal = accion_por_umbrales + accion_derivativa
+        control_signal = accion_proporcional + accion_derivativa
 
         # Aplicamos la señal al actuador
         self.manager.scale(control_signal)

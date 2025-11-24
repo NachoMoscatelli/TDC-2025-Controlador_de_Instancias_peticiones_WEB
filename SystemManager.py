@@ -10,11 +10,11 @@ class SystemManager:
     """
     MIN_SERVERS = 1
 
-    def __init__(self, data_collector):
+    def __init__(self, data_collector, max_servers = 50):
         self.peticiones_pendientes = queue.Queue()
         self.instancias = []
         self.data_collector = data_collector
-        self.max_servers = 50  # Límite superior de instancias, ahora configurable
+        self.max_servers = max_servers  # Límite superior de instancias, ahora configurable
         self.cola_lock = threading.Lock()
         self.peticiones_nuevas_sem = threading.Semaphore(0)
         self.instancias_libres_sem = threading.Semaphore(0)
@@ -104,11 +104,13 @@ class SystemManager:
         """
         Ajusta el número de instancias basado en la señal de control PD.
 
-        control_signal > 0  -> tiende a reducir instancias
-        control_signal < 0  -> tiende a aumentar instancias
+        control_signal > 0  -> tiende a aumentar instancias
+        control_signal < 0  -> tiende a reducir instancias
         """
         actual = len(self.instancias)
-        deseado = math.ceil(actual + control_signal)
+        # Usamos round() para un comportamiento simétrico.
+        # round(5 - 0.5) = 4, round(5 + 0.5) = 6
+        deseado = round(actual + control_signal)
         deseado = max(self.MIN_SERVERS, min(self.max_servers, deseado))
 
         if deseado == actual:
