@@ -146,7 +146,7 @@ class Plotter:
         self.dos_freq_slider = Slider(
             ax=slider_dos_freq_ax,
             label='Frecuencia Ataque (Hz)',
-            valmin=1, valmax=100, valinit=self.dos_frecuencia_hz, valstep=1,
+            valmin=1, valmax=1000, valinit=self.dos_frecuencia_hz, valstep=1,
         )
         self.dos_freq_slider.on_changed(lambda val: setattr(self, 'dos_frecuencia_hz', val))
 

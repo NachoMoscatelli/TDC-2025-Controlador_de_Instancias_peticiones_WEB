@@ -29,7 +29,7 @@ def main():
 
     data_collector = DataCollector(sim_start_time)
     manager = SystemManager(data_collector, max_servers=50)
-    controlador = Controlador(manager, Kp=0.8, Kd=7.0, deadband_s=0.1)
+    controlador = Controlador(manager, Kp=0.8, Kd=7.0, deadband_s=0)
     medidor = Medidor(
         manager,
         controlador,

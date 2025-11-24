@@ -35,6 +35,8 @@ class SystemManager:
         # nueva instancia libre:
         self.instancias_libres_sem.release()
         self.next_instance_id += 1
+        logging.info("Manager: Instancia %s creada y añadida al pool. Total: %d.",
+                     instance_id, len(self.instancias))
         return nueva_instancia
 
     def destroy_instance(self):
@@ -111,27 +113,22 @@ class SystemManager:
 
         logging.info("Dispatcher: detenido.")
 
-    def scale(self, control_signal: float):
+    def scale(self, num_instancias_a_variar: int):
         """
-        Ajusta el número de instancias basado en la señal de control PD.
-
-        control_signal > 0  -> tiende a aumentar instancias
-        control_signal < 0  -> tiende a reducir instancias
+        Ajusta el número de instancias basado en una orden discreta del controlador.
+        num_instancias_a_variar > 0  -> crear instancias
+        num_instancias_a_variar < 0  -> destruir instancias
         """
-        actual = len(self.instancias)
-        # Usamos round() para un comportamiento simétrico.
-        # round(5 - 0.5) = 4, round(5 + 0.5) = 6
-        deseado = round(actual + control_signal)
-        deseado = max(self.MIN_SERVERS, min(self.max_servers, deseado))
-
-        if deseado == actual:
+        if num_instancias_a_variar == 0:
             return
 
-        if deseado > actual:
-            delta = deseado - actual
+        if num_instancias_a_variar > 0:
+            actual = len(self.instancias)
+            deseado = min(self.max_servers, actual + num_instancias_a_variar)
+            delta = deseado - actual # Cuántas crear realmente
             logging.info(
-                "Manager.scale: señal=%.3f -> escalando hacia ARRIBA (+%d instancias, de %d a %d).",
-                control_signal,
+                "Manager.scale: orden=+%d -> escalando hacia ARRIBA (+%d instancias, de %d a %d).",
+                num_instancias_a_variar,
                 delta,
                 actual,
                 deseado,
@@ -139,13 +136,11 @@ class SystemManager:
             for _ in range(delta):
                 self.create_instance()
         else:
-            delta = actual - deseado
+            delta = abs(num_instancias_a_variar)
             logging.info(
-                "Manager.scale: señal=%.3f -> escalando hacia ABAJO (-%d instancias, de %d a %d).",
-                control_signal,
+                "Manager.scale: orden=%d -> escalando hacia ABAJO (-%d instancias).",
+                num_instancias_a_variar,
                 delta,
-                actual,
-                deseado,
             )
             for _ in range(delta):
                 self.destroy_instance()

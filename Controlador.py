@@ -66,11 +66,16 @@ class Controlador:
         derivada = error_s - self.error_previo
         accion_derivativa = -self.Kd * derivada
 
-        control_signal = accion_proporcional + accion_derivativa
+        # La señal de control sigue siendo un float que representa la "presión" para escalar.
+        continuous_control_signal = accion_proporcional + accion_derivativa
+
+        # AHORA, el controlador decide la acción discreta.
+        # Se redondea aquí, centralizando la lógica de decisión.
+        discrete_action = round(continuous_control_signal)
 
         # Aplicamos la señal al actuador
-        self.manager.scale(control_signal)
-        num_servers_nuevo = len(self.manager.instancias)
+        self.manager.scale(discrete_action) # Enviamos un entero (ej: -1, 0, 1, 2...)
+        num_servers_nuevo = len(self.manager.instancias) # El manager ya habrá actuado
 
         # Logging estilo ejemplo, pero con tiempo medio de respuesta
         logging.info(
@@ -82,7 +87,7 @@ class Controlador:
         logging.info(
             "Cantidad de requests: %d - Senal de control (PD): %.3f - Nuevo numero de servidores: %d",
             total_peticiones,
-            control_signal,
+            continuous_control_signal, # Logueamos la señal continua para análisis
             num_servers_nuevo,
         )
         logging.info("-----------------------------------------------------------------")
