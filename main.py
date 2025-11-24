@@ -11,7 +11,7 @@ from Plotter import Plotter
 def main():
     # Logging a archivo + consola
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=logging.INFO,
         format='%(asctime)s - %(levelname)s - [%(threadName)s] - %(message)s',
         datefmt='%H:%M:%S',
         filename='simulacion.log',

@@ -40,7 +40,7 @@ class SystemManager:
     def destroy_instance(self):
         if len(self.instancias) <= self.MIN_SERVERS:
             logging.warning(
-                "Manager: intento de desescalado por debajo del mínimo (%d instancias). Acción cancelada.",
+                "Manager: intento de desescalado por debajo del minimo (%d instancias). Accion cancelada.",
                 self.MIN_SERVERS,
             )
             return
@@ -62,7 +62,7 @@ class SystemManager:
 
     def receive_request(self, arrival_time, processing_time):
         logging.info(
-            "<-- Manager: Petición recibida t=%.2f con tiempo de procesamiento=%.3fs.",
+            "<-- Manager: Peticion recibida t=%.2f con tiempo de procesamiento=%.3fs.",
             arrival_time,
             processing_time,
         )

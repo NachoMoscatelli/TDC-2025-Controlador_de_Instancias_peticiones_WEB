@@ -79,7 +79,7 @@ class Controlador:
             latencia_promedio_s,
         )
         logging.info(
-            "Cantidad de requests: %d - Señal de control (PD): %.3f - Nuevo numero de servidores: %d",
+            "Cantidad de requests: %d - Senal de control (PD): %.3f - Nuevo numero de servidores: %d",
             total_peticiones,
             control_signal,
             num_servers_nuevo,

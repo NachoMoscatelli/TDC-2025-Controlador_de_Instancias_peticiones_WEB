@@ -160,7 +160,7 @@ class Plotter:
                 self.text_box.set_val(f"{self.latencia_deseada_s:.2f}") # Revertir
                 return
         except ValueError:
-            logging.warning("Valor de setpoint inválido. Use, por ejemplo, 1 o 0.5.")
+            logging.warning("Valor de setpoint invalido. Use, por ejemplo, 1 o 0.5.")
             self.text_box.set_val(f"{self.latencia_deseada_s:.2f}") # Revertir
             return
 
@@ -181,7 +181,7 @@ class Plotter:
         logging.info("Nuevo setpoint establecido: %.3f s.", nuevo_sp_s)
 
     def _on_dos_click(self, event):
-        logging.info("Disparando ataque DoS con Duración=%.1fs y Frecuencia=%.1f RPS",
+        logging.info("Disparando ataque DoS con Duracion=%.1fs y Frecuencia=%.1f RPS",
                      self.dos_duracion_s, self.dos_frecuencia_hz)
         self.cliente.ejecutar_dos(duracion_s=self.dos_duracion_s, frecuencia_promedio_hz=self.dos_frecuencia_hz)
 
@@ -189,13 +189,13 @@ class Plotter:
         try:
             nueva_duracion = float(text)
             if nueva_duracion <= 0:
-                logging.warning("La duración del ataque debe ser mayor a 0.")
+                logging.warning("La duracion del ataque debe ser mayor a 0.")
                 self.dos_duracion_textbox.set_val(f"{self.dos_duracion_s:.1f}")
                 return
             self.dos_duracion_s = nueva_duracion
-            logging.info("Nueva duración de ataque DoS establecida: %.1f s", nueva_duracion)
+            logging.info("Nueva duracion de ataque DoS establecida: %.1f s", nueva_duracion)
         except ValueError:
-            logging.warning("Valor de duración de ataque inválido.")
+            logging.warning("Valor de duracion de ataque invalido.")
             self.dos_duracion_textbox.set_val(f"{self.dos_duracion_s:.1f}")
 
     def _on_muestreo_change(self, freq_hz):
@@ -214,10 +214,10 @@ class Plotter:
                 raise ValueError(f"Debe ser >= {max(manager.MIN_SERVERS, num_actual)}")
 
             manager.max_servers = nuevo_max
-            logging.info("Nuevo máximo de instancias establecido: %d", nuevo_max)
+            logging.info("Nuevo maximo de instancias establecido: %d", nuevo_max)
 
         except ValueError as e:
-            logging.warning("Valor de max_instancias inválido: %s", e)
+            logging.warning("Valor de max_instancias invalido: %s", e)
             # Revertir al valor actual en la caja de texto
             self.max_inst_textbox.set_val(f"{self.medidor.manager.max_servers}")
 
@@ -235,7 +235,7 @@ class Plotter:
 
         if timestamps:
             logging.debug(
-                "Plotter: Actualizando con %d puntos. Último: t=%.2f, lat=%.3f s, inst=%d, pet=%d",
+                "Plotter: Actualizando con %d puntos. Ultimo: t=%.2f, lat=%.3f s, inst=%d, pet=%d",
                 len(timestamps),
                 timestamps[-1],
                 lat_s[-1] if lat_s else -1,
@@ -243,7 +243,7 @@ class Plotter:
                 peticiones[-1] if peticiones else -1,
             )
         else:
-            logging.debug("Plotter: No hay datos para graficar todavía.")
+            logging.debug("Plotter: No hay datos para graficar todavia.")
 
         self.line1.set_data(timestamps, lat_s)
         self.line2.set_data(timestamps, instancias)

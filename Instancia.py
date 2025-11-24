@@ -56,7 +56,7 @@ class Instancia:
             with self._lock:
                 self._ocupado = True
             logging.info(
-                "Instancia %s: Comienza a procesar petición que tardará %.3fs.",
+                "Instancia %s: Comienza a procesar petición que tardara %.3fs.",
                 self.id,
                 tiempo_procesamiento,
             )
@@ -71,5 +71,5 @@ class Instancia:
                 self._ocupado = False
                 self.arrival_time_actual = None
             self.semaforo.release()
-            logging.info("Instancia %s: Petición finalizada. Esperando nueva petición.", self.id)
+            logging.info("Instancia %s: Peticion finalizada. Esperando nueva petición.", self.id)
             self.peticiones.task_done()
