@@ -3,3 +3,7 @@ __pycache__
 *.zip
 
 *.log
+
+build/
+dist/
+main.spec

@@ -79,22 +79,58 @@ Un archivo de valores separados por comas (CSV) que define la carga de trabajo d
 
 ---
 
-## Cómo Ejecutar la Simulación
+## Guía de Instalación y Ejecución
 
-Siga estos pasos para poner en marcha la simulación en un entorno local.
+Sigue estos pasos para descargar y ejecutar el programa en tu computadora.
 
-### Prerrequisitos
+### 1. Requisitos Previos
 
-1.  Tener **Python 3** instalado en el sistema.
-2.  Haber clonado o descargado el código fuente de este repositorio.
-3.  Instalar la librería `matplotlib` para la generación de gráficos. Puedes hacerlo con el comando: `pip install matplotlib`.
+Asegúrate de tener instalado **Python 3.8 o una versión más reciente**. Puedes descargarlo desde python.org.
 
-### Pasos para la Ejecución
+Para verificar si tienes Python, abre una terminal (o `cmd` / `PowerShell` en Windows) y ejecuta:
+```bash
+python --version
+```
 
-1.  Abra una terminal o línea de comandos (como `cmd`, `PowerShell` o `Terminal`).
-2.  Navegue hasta el directorio raíz del proyecto, donde se encuentra el archivo `main.py`.
-3.  Ejecute el siguiente comando:
-    ```sh
-    python main.py
-    ```
-4.  Observe la salida en la consola. Verá en tiempo real los logs que indican el envío de peticiones por parte del cliente, el despacho por parte del `SystemManager` y el procesamiento por parte de cada `Instancia`. La simulación finalizará automáticamente una vez que todas las peticiones hayan sido procesadas.
+### 2. Descargar el Repositorio
+
+Puedes obtener el código de dos maneras:
+
+**Opción A: Clonar con Git (Recomendado)**
+
+Si tienes Git instalado, clona el repositorio con el siguiente comando:
+```bash
+git clone <URL_DEL_REPOSITORIO_AQUI>
+cd <NOMBRE_DE_LA_CARPETA_DEL_REPOSITORIO>
+```
+
+**Opción B: Descargar como ZIP**
+
+1.  Ve a la página principal del repositorio.
+2.  Haz clic en el botón "Code" y luego en "Download ZIP".
+3.  Descomprime el archivo en la ubicación que prefieras y abre una terminal en esa carpeta.
+
+### 3. Instalar Dependencias
+
+Este proyecto necesita las librerías `matplotlib` y `numpy` para funcionar. La forma más sencilla de instalarlas es usando `pip`, el gestor de paquetes de Python.
+
+En tu terminal, dentro de la carpeta del proyecto, ejecuta:
+```bash
+pip install matplotlib numpy
+```
+
+### 4. Ejecutar el Programa
+
+Una vez instaladas las dependencias, puedes iniciar la simulación ejecutando el archivo `main.py`:
+```bash
+python main.py
+```
+
+Al ejecutarlo, se abrirá una ventana con los gráficos de la simulación. Para finalizar, simplemente cierra la ventana del gráfico.
+
+## Descarga Ejecutable
+
+Si posee un SO Windows puede intentar descargar el ejecutable desde el siguiente drive:
+https://drive.google.com/drive/folders/1Y_gxwhSxNzqg6aU1tWvVl2L8OBumby8B?usp=sharing
+
+El archivo se encuentra comprimido, asi que deberá descomprimirlo primero.
